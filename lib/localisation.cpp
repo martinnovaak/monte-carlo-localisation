@@ -14,7 +14,7 @@ double Localisation::delta = 0.01;
 
 
 Localisation::Localisation(const Binmap & map, const std::vector<double> & angles)
-        : map(map), angles(angles), number_of_threads(8), w_slow(0), w_fast(0)
+        : map(map), angles(angles), number_of_threads(8), w_slow(0), w_fast(0), N(1)
 {
     rng = RNG();
 
@@ -199,7 +199,6 @@ double Localisation::update_particles_and_weights(std::vector<Particle> & partic
     for (unsigned int i = from; i < to; i++) {
         Particle & particle = particles[i];
         motion_update(particle, u_t);
-        measure_particle(particle);
         total_weight += measurement_model(particle, z_t);
     }
     return total_weight;
@@ -208,24 +207,25 @@ double Localisation::update_particles_and_weights(std::vector<Particle> & partic
 void Localisation::motion_update(Particle & particle, const std::array<double, 3> & u_t)
 {
     // Normal distribution
-    particle.h += u_t[2] + rng.generate_normal_number() * 0.1;
     particle.x += u_t[0] + cos(particle.h) * rng.generate_normal_number() * 20;
     particle.y += u_t[1] + sin(particle.h) * rng.generate_normal_number() * 20;
+    particle.h += u_t[2] + rng.generate_normal_number() * 0.1;
 
     particle.h = fmod(particle.h, 360.0);
 }
 
-void Localisation::measure_particle(Particle & particle)
-{
+std::vector<double> Localisation::measure_particle(Particle & particle) const {
     auto [x, y, h] = particle.getPose();
-    particle.distance.resize(angles.size());
+    std::vector<double> distances(angles.size());
+
     for (unsigned int j = 0; j < angles.size(); j++) {
-        particle.distance[j] = calculate_distance(x, y, h+angles[j]);
+        distances[j] = calculate_distance(x, y, h+angles[j]);
     }
+
+    return distances;
 }
 
-double Localisation::calculate_distance(double x, double y, double h)
-{
+double Localisation::calculate_distance(double x, double y, double h) const {
     double distance = 0.0;
     double ax = cos(h), ay = sin(h);
     double dx = 0.0, dy = 0.0;
@@ -249,9 +249,11 @@ double Localisation::calculate_distance(double x, double y, double h)
 
 double Localisation::measurement_model(Particle &particle, const std::vector<double> &z_t) const
 {
+    std::vector<double> distances = measure_particle(particle);
+
     double p = 1.0, sigma_hit = 0.5;
     for (unsigned int i = 0; i < z_t.size(); i++) {
-        double a = (z_t[i] - particle.distance[i]) / 100.0;
+        double a = (z_t[i] - distances[i]) / 100.0;
         p *= std::exp(-0.5 * a * a) / sigma_hit;
     }
     p += 1.0 / N;
@@ -455,7 +457,7 @@ std::optional<std::tuple<int, int, int>> Localisation::get_bin(const std::vector
     return std::make_tuple(x, y, h);
 }
 
-bool Localisation::legal_map_position(double x, double y)
+bool Localisation::legal_map_position(double x, double y) const
 {
     return x >= 0.0 && y >= 0.0 && x < static_cast<double>(width) && y < static_cast<double>(height) && !map[static_cast<int>(y)][static_cast<int>(x)];
 }

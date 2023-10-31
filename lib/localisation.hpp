@@ -41,9 +41,9 @@ public:
 
     void motion_update(Particle & particle, const std::array<double, 3> & u_t);
 
-    void measure_particle(Particle & particle);
+    std::vector<double> measure_particle(Particle & particle) const;
 
-    double calculate_distance(double x, double y, double h);
+    double calculate_distance(double x, double y, double h) const;
 
     double measurement_model(Particle & particle, const std::vector<double> & z_t) const;
 
@@ -65,7 +65,7 @@ private:
 
     std::optional<std::tuple<int, int, int>> get_bin(const std::vector<std::vector<std::vector<bool>>> & bins, const Particle & particle) const;
 
-    bool legal_map_position(double x, double y);
+    [[nodiscard]] bool legal_map_position(double x, double y) const;
 };
 
 #endif // LOCALISATION_HPP

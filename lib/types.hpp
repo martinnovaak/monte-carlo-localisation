@@ -14,7 +14,6 @@ enum Problem : int {
 struct Particle {
     double x, y, h; // coordinates
     double weight;
-    std::vector<double> distance;
 
     Particle() : x{}, y{}, h{}, weight{} {}
     Particle(double x, double y, double h) : x(x), y(y), h(h), weight(1.0) {}

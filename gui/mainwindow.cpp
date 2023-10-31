@@ -179,8 +179,8 @@ void MainWindow::update_robot()
     robot_item = std::make_unique<QGraphicsEllipseItem>(robot.x, robot.y, 6, 6);
     robot_item->setBrush(QBrush(Qt::green));
 
-    localisation->measure_particle(robot);
-    z_t = robot.distance;
+    z_t = localisation->measure_particle(robot);
+
     for(unsigned int i = 0; i < angles.size() ; i++) {
         double x2 = robot.x + cos(robot.h + angles[i]) * z_t[i];
         double y2 = robot.y + sin(robot.h + angles[i]) * z_t[i];
