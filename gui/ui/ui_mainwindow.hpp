@@ -55,7 +55,7 @@ public:
     {
         if (MainWindow->objectName().isEmpty())
             MainWindow->setObjectName("MainWindow");
-        MainWindow->resize(1153, 641);
+        MainWindow->resize(1220, 695);
         actiontest = new QAction(MainWindow);
         actiontest->setObjectName("actiontest");
         centralwidget = new QWidget(MainWindow);
@@ -156,7 +156,7 @@ public:
         MainWindow->setCentralWidget(centralwidget);
         menubar = new QMenuBar(MainWindow);
         menubar->setObjectName("menubar");
-        menubar->setGeometry(QRect(0, 0, 1153, 22));
+        menubar->setGeometry(QRect(0, 0, 1220, 22));
         MainWindow->setMenuBar(menubar);
         statusbar = new QStatusBar(MainWindow);
         statusbar->setObjectName("statusbar");

@@ -10,7 +10,6 @@ Q_OBJECT
 
 public:
     explicit MyScene(QObject *parent = nullptr) : QGraphicsScene(parent) {}
-
 protected:
     void mousePressEvent(QGraphicsSceneMouseEvent *event) override {
         emit mousePressEventSignal(event);

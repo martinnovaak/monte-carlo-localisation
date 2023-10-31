@@ -11,7 +11,9 @@ class QGraphicsRectItem;
 class QGraphicsEllipseItem;
 class QTimer;
 
-enum Direction : int {NONE = 0, UP = 1, DOWN = 2, LEFT = 3, RIGHT = 4};
+enum Direction : int {
+    NONE = 0, UP = 1, DOWN = 2, LEFT = 3, RIGHT = 4
+};
 
 QT_BEGIN_NAMESPACE
 namespace Ui { class MainWindow; }

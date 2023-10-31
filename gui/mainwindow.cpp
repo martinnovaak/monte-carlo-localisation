@@ -19,7 +19,7 @@
 void MainWindow::setup_UI()
 {
     ui->setupUi(this);
-    scene = new MyScene();
+
     auto * action_load_maze = new QAction("Load Map");
     this->menuBar()->addAction(action_load_maze);
     connect(action_load_maze, &QAction::triggered, this, &MainWindow::loadMaze);
@@ -28,13 +28,13 @@ void MainWindow::setup_UI()
     this->menuBar()->addAction(action_settings);
     connect(action_settings, &QAction::triggered, this, &MainWindow::load_settings);
 
-    QPixmap pixmap(":/maze2.png");
-    this->enviroment = new QGraphicsRectItem(0, 0, pixmap.width(), pixmap.height());
-    load_map(pixmap);
 
-    ui->view->scale(0.90, 0.82); // fix weird scaling of QGraphicsView
     ui->view->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     ui->view->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+
+    QPixmap pixmap(":/maze2.png");
+    scene = new MyScene;
+    load_map(pixmap);
 
     unsigned int number_of_CPU_threads = std::thread::hardware_concurrency();
     ui->threadSpinbox->setMaximum(static_cast<int>(number_of_CPU_threads));
@@ -86,8 +86,16 @@ bool MainWindow::is_black(const QRgb & pixel)
 
 void MainWindow::load_map(const QPixmap &pixmap)
 {
-    enviroment->setBrush(QBrush(pixmap));
-    scene->addItem(enviroment);
+    ui->view->setRenderHint(QPainter::SmoothPixmapTransform);
+
+    // Set the sceneRect to match the pixmap's dimensions
+    scene->setSceneRect(pixmap.rect());
+
+    // Create a QGraphicsPixmapItem to display the QPixmap
+    QGraphicsPixmapItem * pixmapItem = scene->addPixmap(pixmap);
+
+    // Fit the view to the pixmap while preserving the aspect ratio
+    ui->view->fitInView(pixmapItem, Qt::IgnoreAspectRatio);
 
     QImage image = pixmap.toImage();
     auto width  = image.width();   // width of map
@@ -102,7 +110,6 @@ void MainWindow::load_map(const QPixmap &pixmap)
     }
 
     ui->view->setScene(scene);
-    this->setGeometry(QRect(0,0, width + 50, height + 50));
 }
 
 MainWindow::MainWindow(QWidget *parent)
@@ -111,8 +118,6 @@ MainWindow::MainWindow(QWidget *parent)
     setFocusPolicy(Qt::StrongFocus);
 
     setup_UI();
-
-    allocate_particles(100'000);
 
     angles = {-1.57079632679,-0.78539816339, 0, 0.78539816339, 1.57079632679};
     z_t.resize(angles.size());
@@ -250,14 +255,8 @@ void MainWindow::loadMaze()
 
     QPixmap pixmap(i.absoluteFilePath());
 
-    if (scene) {
-        scene->removeItem(enviroment);
-    }
-
-    delete enviroment;
-    this->enviroment = new QGraphicsRectItem(0, 0, pixmap.width(), pixmap.height());
     load_map(pixmap);
-    ui->view->scale(1.0, 0.92);
+    //ui->view->scale(1.0, 0.92);
     localisation->set_map(map);
 }
 
