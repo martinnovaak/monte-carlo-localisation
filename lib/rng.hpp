@@ -20,6 +20,13 @@ public:
         return standard_normal_dist(engine);
     };
 
+    double generate_triangle_number() {
+        double u1 = generate_uniform_number();
+        double u2 = generate_uniform_number();
+
+        return u1 + u2 - 1.0;
+    }
+
 private:
     std::mt19937 engine;
     std::uniform_real_distribution<double> random_uniform;

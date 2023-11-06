@@ -19,6 +19,8 @@ private:
 
     RNG rng;                                // random number generator
 
+    double sensor_noise, forward_noise, turn_noise;
+
     // parameters for augmented MCL
     static double alpha_slow, alpha_fast;
     double w_slow, w_fast;
@@ -34,7 +36,6 @@ public:
     Pose augmented_mcl(std::vector<Particle> & particles, const std::array<double, 3> & u_t, const std::vector<double> & z_t);
     Pose mmcl(std::vector<Particle> & particles, const std::array<double, 3> &u_t, const std::vector<double> &z_t);
 
-    // Generate particles according to bel(x_0)
     void generate_particles(std::vector<Particle> & particles, Problem mode, Pose initial_position = {});
 
     double update_particles_and_weights(std::vector<Particle> & particles, const std::array<double, 3> & u_t, const std::vector<double> & z_t, unsigned int from, unsigned int to);
@@ -43,9 +44,11 @@ public:
 
     std::vector<double> measure_particle(Particle & particle) const;
 
-    double calculate_distance(double x, double y, double h) const;
+    [[nodiscard]] double calculate_distance(double x, double y, double h) const;
 
     double measurement_model(Particle & particle, const std::vector<double> & z_t) const;
+
+    void normalize_weights(std::vector<Particle> & particles, double total_norm);
 
     // resampling algorithms
     std::vector<Particle> systematic_resampling(std::vector<Particle> & particles);

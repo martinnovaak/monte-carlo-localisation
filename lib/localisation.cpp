@@ -18,6 +18,10 @@ Localisation::Localisation(const Binmap & map, const std::vector<double> & angle
 {
     rng = RNG();
 
+    sensor_noise = 20;
+    forward_noise = 20;
+    turn_noise = 0.087;
+
     height = map.size();
     if(!map.empty()) {
         width = map[0].size();
@@ -30,6 +34,11 @@ Pose Localisation::mcl(std::vector<Particle> & particles, const std::array<doubl
     // Variance reduction
     // When the state is static x_t == x_(t-1)
     if (u_t[0] == 0.0 && u_t[1] == 0.0 && u_t[2] == 0.0) {
+        double total_norm = 0.0;
+        for (auto & particle : particles) {
+            total_norm += particle.weight;
+        }
+        normalize_weights(particles, total_norm);
         return estimate_position(particles); // Return the estimated position without any updates or resampling
     }
 
@@ -38,7 +47,7 @@ Pose Localisation::mcl(std::vector<Particle> & particles, const std::array<doubl
     std::vector<std::future<double>> futures;
     double total_norm = 0.0;
 
-    // Define a lambda function to update particles and weights within a specified range
+    // Lambda function to update particles and weights within a specified range
     auto update_func = [&](unsigned int start, unsigned int end) {
         return update_particles_and_weights(particles, u_t, z_t, start, end);
     };
@@ -56,9 +65,7 @@ Pose Localisation::mcl(std::vector<Particle> & particles, const std::array<doubl
     }
 
     // Normalize particle weights
-    for (auto & particle : particles) {
-        particle.weight /= total_norm;
-    }
+    normalize_weights(particles, total_norm);
 
     Pose estimate = estimate_position(particles);
 
@@ -95,9 +102,7 @@ Pose Localisation::augmented_mcl(std::vector<Particle> &particles, const std::ar
         total_norm += future.get();
     }
 
-    for(auto & particle : particles) {
-        particle.weight /= total_norm;
-    }
+    normalize_weights(particles, total_norm);
 
     std::vector<double> randoms(N);
     for(auto & random : randoms) {
@@ -147,11 +152,9 @@ Pose Localisation::mmcl(std::vector<Particle> & particles, const std::array<doub
         total_norm += future.get();
     }
 
-    for(auto & particle : particles) {
-        particle.weight /= total_norm;
-    }
+    normalize_weights(particles, total_norm);
 
-    // average weight
+    // Average weight
     double w_avg = total_norm / N;
 
     w_slow += alpha_slow * (w_avg - w_slow);
@@ -166,6 +169,7 @@ Pose Localisation::mmcl(std::vector<Particle> & particles, const std::array<doub
     return estimate;
 }
 
+// Generate particles according to bel(x_0)
 void Localisation::generate_particles(std::vector<Particle> & particles, Problem mode, Pose initial_position)
 {
     this->N = particles.size();
@@ -184,7 +188,7 @@ void Localisation::generate_particles(std::vector<Particle> & particles, Problem
                 x = fmod((init_x + cos(h) * rng.generate_normal_number() * 10), static_cast<double>(width));
                 y = fmod((init_y + sin(h) * rng.generate_normal_number() * 10), static_cast<double>(height));
             } while(!legal_map_position(x, y));
-            particles[i] = Particle(x, y, h);
+            particles[i] = Particle(x, y, h, 1.0 / N);
         }
     } else {
         for(unsigned int i = 0; i < N; i++) {
@@ -206,10 +210,17 @@ double Localisation::update_particles_and_weights(std::vector<Particle> & partic
 
 void Localisation::motion_update(Particle & particle, const std::array<double, 3> & u_t)
 {
+    // Triangle distribution
+    particle.x += u_t[0] + cos(particle.h) * rng.generate_triangle_number() * forward_noise;
+    particle.y += u_t[1] + sin(particle.h) * rng.generate_triangle_number() * forward_noise;
+    particle.h += u_t[2] + rng.generate_triangle_number() * turn_noise;
+
     // Normal distribution
-    particle.x += u_t[0] + cos(particle.h) * rng.generate_normal_number() * 20;
-    particle.y += u_t[1] + sin(particle.h) * rng.generate_normal_number() * 20;
-    particle.h += u_t[2] + rng.generate_normal_number() * 0.1;
+    /*
+    particle.x += u_t[0] + cos(particle.h) * rng.generate_normal_number() * forward_noise;
+    particle.y += u_t[1] + sin(particle.h) * rng.generate_normal_number() * forward_noise;
+    particle.h += u_t[2] + rng.generate_normal_number() * turn_noise;
+    */
 
     particle.h = fmod(particle.h, 360.0);
 }
@@ -251,14 +262,24 @@ double Localisation::measurement_model(Particle &particle, const std::vector<dou
 {
     std::vector<double> distances = measure_particle(particle);
 
-    double p = 1.0, sigma_hit = 0.5;
+    double p = 1.0;
     for (unsigned int i = 0; i < z_t.size(); i++) {
-        double a = (z_t[i] - distances[i]) / 100.0;
-        p *= std::exp(-0.5 * a * a) / sigma_hit;
+        double a = (z_t[i] - distances[i]);
+        a /= sensor_noise;
+        // p *= std::exp(-0.5 * a * a);
+        double p_z = std::exp(-0.5 * a * a);
+        p += p_z * p_z * p_z; // https://bitly.ws/Za8s
     }
+
     p += 1.0 / N;
-    particle.weight = p;
-    return p;
+    particle.weight *= p;
+    return particle.weight;
+}
+
+void Localisation::normalize_weights(std::vector<Particle> & particles, double total_norm) {
+    for(auto & particle : particles) {
+        particle.weight /= total_norm;
+    }
 }
 
 // systematic resampling
@@ -360,7 +381,7 @@ std::vector<Particle> Localisation::kld_resampling(const std::vector<Particle> &
                     cumulative_weight += particles[i].weight;
                 }
                 new_particle = particles[i];
-                //new_particle.weight = 1.0;
+                new_particle.weight = 1.0;
             }
 
             new_particles.push_back(new_particle);
@@ -405,7 +426,7 @@ Particle Localisation::generate_random_particle()
         x = rng.generate_uniform_number() * width;
         y = rng.generate_uniform_number() * height;
     } while (!legal_map_position(x, y));
-    return {x, y, h};
+    return {x, y, h, 1.0 / N};
 }
 
 void Localisation::set_threads(unsigned int thread_count)

@@ -184,6 +184,7 @@ void MainWindow::update_robot()
     for(unsigned int i = 0; i < angles.size() ; i++) {
         double x2 = robot.x + cos(robot.h + angles[i]) * z_t[i];
         double y2 = robot.y + sin(robot.h + angles[i]) * z_t[i];
+
         lasers[i] = std::make_unique<QGraphicsLineItem>(robot.x + 3, robot.y + 3, x2, y2);
         lasers[i]->setPen(QPen(Qt::green));
     }
@@ -286,7 +287,7 @@ void MainWindow::handleMousePressEvent(QGraphicsSceneMouseEvent *event)
 
 void MainWindow::setup_robot()
 {
-    robot = Particle(800, 300, 0);
+    robot = Particle(800, 300, 0, 1.0);
     robot_item = std::make_unique<QGraphicsEllipseItem>(800,300,6,6);
     robot_item->setBrush(QBrush(Qt::green));
     scene->addItem(robot_item.get());
@@ -336,7 +337,13 @@ void MainWindow::update_canvas()
 
     unsigned int nop = std::min(500, static_cast<int>(particles.size()));
     std::partial_sort(particles.begin(), std::next(particles.begin(), nop), particles.end(), [](const Particle& p1, const Particle& p2) {
-        return p1.weight > p2.weight;
+        if (p1.weight > 0.99999) {
+            return false;
+        } else if (p2.weight > 0.99999) {
+            return true;
+        } else {
+            return p1.weight > p2.weight;
+        }
     });
 
     for (unsigned int i = 0; i < 500; i++) {
