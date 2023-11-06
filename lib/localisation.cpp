@@ -33,13 +33,8 @@ Pose Localisation::mcl(std::vector<Particle> & particles, const std::array<doubl
 {
     // Variance reduction
     // When the state is static x_t == x_(t-1)
-    if (u_t[0] == 0.0 && u_t[1] == 0.0 && u_t[2] == 0.0) {
-        double total_norm = 0.0;
-        for (auto & particle : particles) {
-            total_norm += particle.weight;
-        }
-        normalize_weights(particles, total_norm);
-        return estimate_position(particles); // Return the estimated position without any updates or resampling
+    if (std::all_of(u_t.begin(), u_t.end(), [](double val) { return val == 0.0; })) {
+        return static_state_position_estimation(particles);
     }
 
     this->N = particles.size();
@@ -47,15 +42,13 @@ Pose Localisation::mcl(std::vector<Particle> & particles, const std::array<doubl
     std::vector<std::future<double>> futures;
     double total_norm = 0.0;
 
-    // Lambda function to update particles and weights within a specified range
-    auto update_func = [&](unsigned int start, unsigned int end) {
-        return update_particles_and_weights(particles, u_t, z_t, start, end);
-    };
+    // Lambda function to update particles within a specified range
+    auto update_func = update_particle_section(particles, u_t, z_t);
 
     // Parallelize the particle update process by dividing the work among multiple threads
     for (unsigned int i = 0; i < number_of_threads; i++) {
         unsigned int start = i * particles_per_thread;
-        unsigned int end = (i == number_of_threads - 1) ? N : (i + 1) * particles_per_thread;
+        unsigned int end = std::min((i + 1) * particles_per_thread, N);
         futures.push_back(std::async(std::launch::async, update_func, start, end));
     }
 
@@ -78,8 +71,8 @@ Pose Localisation::augmented_mcl(std::vector<Particle> &particles, const std::ar
 {
     // Variance reduction
     // When the state is static x_t == x_(t-1)
-    if(u_t[0] == 0.0 && u_t[1] == 0.0 && u_t[2] == 0.0) {
-        return estimate_position(particles); // Return the estimated position without any updates or resampling
+    if (std::all_of(u_t.begin(), u_t.end(), [](double val) { return val == 0.0; })) {
+        return static_state_position_estimation(particles);
     }
 
     this->N = particles.size();
@@ -87,14 +80,13 @@ Pose Localisation::augmented_mcl(std::vector<Particle> &particles, const std::ar
     std::vector<std::future<double>> futures;
     double total_norm = 0.0;
 
-    auto update_func = [&](unsigned int start, unsigned int end) {
-        return update_particles_and_weights(particles, u_t, z_t, start, end);
-    };
+    // Lambda function to update particles within a specified range
+    auto update_func = update_particle_section(particles, u_t, z_t);
 
     // Parallelize the particle update process by dividing the work among multiple threads
     for (unsigned int i = 0; i < number_of_threads; i++) {
         unsigned int start = i * particles_per_thread;
-        unsigned int end = (i == number_of_threads - 1) ? N : (i + 1) * particles_per_thread;
+        unsigned int end = std::min((i + 1) * particles_per_thread, N);
         futures.push_back(std::async(std::launch::async, update_func, start, end));
     }
 
@@ -128,8 +120,8 @@ Pose Localisation::augmented_mcl(std::vector<Particle> &particles, const std::ar
 Pose Localisation::mmcl(std::vector<Particle> & particles, const std::array<double, 3> & u_t, const std::vector<double> & z_t)
 {
     // x_t == x_{t-1}
-    if(u_t[0] == 0.0 && u_t[1] == 0.0 && u_t[2] == 0.0) {
-        return estimate_position(particles);
+    if (std::all_of(u_t.begin(), u_t.end(), [](double val) { return val == 0.0; })) {
+        return static_state_position_estimation(particles);
     }
 
     this->N = particles.size();
@@ -137,14 +129,13 @@ Pose Localisation::mmcl(std::vector<Particle> & particles, const std::array<doub
     std::vector<std::future<double>> futures;
     double total_norm = 0.0;
 
-    auto update_func = [&](unsigned int start, unsigned int end) {
-        return update_particles_and_weights(particles, u_t, z_t, start, end);
-    };
+    // Lambda function to update particles within a specified range
+    auto update_func = update_particle_section(particles, u_t, z_t);
 
     // Parallelize the particle update process by dividing the work among multiple threads
     for (unsigned int i = 0; i < number_of_threads; i++) {
         unsigned int start = i * particles_per_thread;
-        unsigned int end = (i == number_of_threads - 1) ? N : (i + 1) * particles_per_thread;
+        unsigned int end = std::min((i + 1) * particles_per_thread, N);
         futures.push_back(std::async(std::launch::async, update_func, start, end));
     }
 
@@ -197,7 +188,7 @@ void Localisation::generate_particles(std::vector<Particle> & particles, Problem
     }
 }
 
-double Localisation::update_particles_and_weights(std::vector<Particle> & particles, const std::array<double, 3> &u_t, const std::vector<double> &z_t, unsigned int from, unsigned int to)
+double Localisation::update_particles(std::vector<Particle> & particles, const std::array<double, 3> & u_t, const std::vector<double> &z_t, unsigned int from, unsigned int to)
 {
     double total_weight = 0.0;
     for (unsigned int i = from; i < to; i++) {
@@ -277,7 +268,7 @@ double Localisation::measurement_model(Particle &particle, const std::vector<dou
 }
 
 void Localisation::normalize_weights(std::vector<Particle> & particles, double total_norm) {
-    for(auto & particle : particles) {
+    for (auto & particle : particles) {
         particle.weight /= total_norm;
     }
 }
@@ -481,4 +472,26 @@ std::optional<std::tuple<int, int, int>> Localisation::get_bin(const std::vector
 bool Localisation::legal_map_position(double x, double y) const
 {
     return x >= 0.0 && y >= 0.0 && x < static_cast<double>(width) && y < static_cast<double>(height) && !map[static_cast<int>(y)][static_cast<int>(x)];
+}
+
+Pose Localisation::static_state_position_estimation(std::vector<Particle> &particles) {
+    double total_norm = 0.0;
+
+    for (auto & particle : particles) {
+        total_norm += particle.weight;
+    }
+
+    normalize_weights(particles, total_norm);
+
+    return estimate_position(particles); // Return the estimated position without any updates or resampling
+}
+
+std::function<double(unsigned int, unsigned int)> Localisation::update_particle_section(
+        std::vector<Particle> & particles,
+        const std::array<double, 3> & u_t,
+        const std::vector<double> & z_t)
+{
+    return [&](unsigned int start, unsigned int end) {
+        return update_particles(particles, u_t, z_t, start, end);
+    };
 }

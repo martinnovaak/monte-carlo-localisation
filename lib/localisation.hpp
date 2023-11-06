@@ -4,6 +4,7 @@
 #include <vector>
 #include <array>
 #include <optional>
+#include <functional>
 #include "types.hpp"
 #include "rng.hpp"
 
@@ -38,7 +39,7 @@ public:
 
     void generate_particles(std::vector<Particle> & particles, Problem mode, Pose initial_position = {});
 
-    double update_particles_and_weights(std::vector<Particle> & particles, const std::array<double, 3> & u_t, const std::vector<double> & z_t, unsigned int from, unsigned int to);
+    double update_particles(std::vector<Particle> & particles, const std::array<double, 3> & u_t, const std::vector<double> & z_t, unsigned int from, unsigned int to);
 
     void motion_update(Particle & particle, const std::array<double, 3> & u_t);
 
@@ -69,6 +70,10 @@ private:
     std::optional<std::tuple<int, int, int>> get_bin(const std::vector<std::vector<std::vector<bool>>> & bins, const Particle & particle) const;
 
     [[nodiscard]] bool legal_map_position(double x, double y) const;
+
+    Pose static_state_position_estimation(std::vector<Particle> & particles);
+
+    std::function<double(unsigned int, unsigned int)> update_particle_section(std::vector<Particle>& particles, const std::array<double, 3> & u_t, const std::vector<double> & z_t);
 };
 
 #endif // LOCALISATION_HPP
